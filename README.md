@@ -1,16 +1,14 @@
 # wakeadmin 文档网站
 
-[wakeadmin.surge.sh](https://wakeadmin.surge.sh/mapp/index.html)
+[wakeadmin.wakedata.com](https://wakeadmin.wakedata.com)
 
 # 初始化
 
 ```
 $ pnpm install
+$ pnpm build
 ```
 
 # 发布
 
-```shell
-$ pnpm build
-$ pnpm surge docs/.vitepress/dist
-```
+本项目通过 netlify 自动构建
