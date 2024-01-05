@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: Algolia Crawler
 
 on:
   workflow_dispatch:
@@ -14,4 +14,4 @@ jobs:
         CONFIG: '{"index_name":"wakeadmin","start_urls":["https://wakeadmin.wakedata.com"],"stop_urls":[],"selectors":{"lvl0":".content h1","lvl1":".content h2","lvl2":".content h3","lvl3":".content h4","lvl4":".content h5","lvl5":".content h6","text":".content p, .content li, .content code"},  "strip_chars": " .,;:#", "scrape_start_urls": false}'
     steps:
       - name: run
-        run: cd /root && pipenv run python -m src.index 
+        run: cd /root && pipenv install && pipenv run python -m src.index
