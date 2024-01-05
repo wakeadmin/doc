@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "Wakeadmin 文档网站",
   "private": true,
+  "packageManager": "pnpm@7.33.6",
+  "engines": {
+    "node": ">=16.0.0",
+    "pnpm": "^7.0.0"
+  },
   "scripts": {
     "start": "vitepress dev docs",
     "build": "vitepress build docs",
