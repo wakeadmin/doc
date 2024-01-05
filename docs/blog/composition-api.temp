@@ -1,0 +1,306 @@
+# Composition-api
+
+<p style="text-align:right;color: transparent;">光是纽带，会有人将它继承，并再度发光。</p>
+
+## 响应式
+
+### `ref`/`shallowRef`
+
+内部使用`toReactive`对值进行处理，因此即使是对对象也可以进行响应式处理，而不仅仅只是单纯的只能适用于基本数据类型
+
+区别在于， `ref`支持基本数据类型的响应式处理，无论其值为什么，都只能通过`.value`进行访问
+
+- 自动解包
+
+  ```html
+  <script setup>
+    const str = ref('S');
+    const obj = toRefs(reactive({ a: 'Ni', b: 'Mi' }));
+  </script>
+  <template>
+    <span>
+      {{ str }}
+      <!-- 顶层property 因此会自动解包 渲染 "S" -->
+    </span>
+    <span>
+      {{ obj.a }}
+      <!-- 文本插值 即使不是顶层Property 也会自动解包 渲染 "Ni" -->
+    </span>
+    <span>
+      {{ str + 'ora'}}
+      <!-- 顶层property 因此会自动解包 渲染 "Sora" -->
+    </span>
+    <span>
+      {{ obj.a + obj.b}}
+      <!-- 不是直接文本插值 且不是顶层Property 不也会自动解包 渲染 "[object Object][object Object]" -->
+    </span>
+  </template>
+  ```
+
+> 自动解包发生在编译时，在编译的过程中会将通过`toRefs`获取到的值自动执行一次`unref`，而`ref`所声明的值会自动添加`.value`，最后交给`toDisplayString`进行输出最终的值；`toDisplayString`会对`ref`的值做一次处理，这也是为什么上面`{{obj.a}}`能够正常渲染的原因；而`{{ obj.a + obj.b}}`即使会自动进行一次`unref`，但是两者都是一个`object`，执行`+`操作，变成了`[object Object][object Object]`, 这个时候再交给`toDisplayString`处理也没有办法了；
+>
+> ```txt
+> <span>
+> 	{{ str }}
+> </span>
+> // 渲染结果
+> _createElementVNode("span", null, _toDisplayString(str.value), 1 /* TEXT */),
+>
+> <span>  {{obj.a}} </span>
+> // 渲染结果
+> _createElementVNode("span", null,
+> _createTextVNode(_toDisplayString(_unref(obj).a), 1 /* TEXT */)
+> )
+> <span>
+> 	{{ obj.a + obj.b}}
+> </span>
+> // 渲染结果
+> _createElementVNode("span", null,
+> 	 _createTextVNode(_toDisplayString(_unref(obj).a + _unref(obj).b) 1 /* TEXT */)
+> )
+>
+> ```
+
+除此之外，在将`ref`传递给`reactive`的时候也会执行一次解包，但是对`Array`、`Set`、`Map`无效
+
+```js
+const str = ref('S');
+const obj = reactive({ s: str }); // 正常
+const arr = reactive([str]); // 不会进行解包
+const set = reactive(new Set([str])); // 不会进行解包
+const set = reactive(new Map([['s', str]])); // 不会进行解包
+```
+
+### `reactive`/`shallowReactive`
+
+处理非基本数据类型
+
+在`vue2.7`里监听数组的话需要使用`ref`进行替代
+
+不会处理`Map`、`Set`
+
+### `toRef`/`toRefs`
+
+将响应式对象转换成`Ref`，并保持它们直接的同步关系
+
+```js
+const obj = reactive({ a: 1, b: 2 });
+const objA = toRef(obj, 'a');
+const { a, b } = toRefs(obj);
+console.log(objA.value, a.value, b.value, obj); //  1 1 2 {a:1, b: 2}
+obj.a = 'SS';
+console.log(objA.value, a.value, b.value, obj); //  "SS" "SS" 2 {a:"SS", b: 2}
+a.value = 'Ni';
+console.log(objA.value, a.value, b.value, obj); //  "Ni" "Ni" 2 {a:"Ni", b: 2}
+```
+
+### `readonly`
+
+创建一个只读代理，用户无法通过该代理进行修改源数据，但是依旧可以通过数据源进行修改， 并且我们依旧可以监听该只读代理的变化
+
+```js
+const source = ref('S');
+const readonlySource = readonly(source);
+watchEffect(() => {
+  console.log('Set:', readonlySource.value);
+});
+readonlySource.value = 'SS'; // warnning
+source.value = 'Ni';
+// Set: S
+// Set: Ni
+```
+
+### `watchEffect`
+
+- 只能追踪同步依赖
+
+  如果传入函数是个异步函数，只会追踪到第一个`await`之前的依赖关系
+
+- 会立刻执行一次
+
+- 第一个参数可以传入一个副作用清除函数(该函数必然会优先于函数体执行，因此传入的函数跟在函数体里的位置的执行顺序无关)
+
+```js
+const val = ref('S');
+watchEffect(cleanFn => {
+  console.log('set:', val.value);
+  cleanFn(() => console.log('clean'));
+});
+val.value = 'SS';
+// clean
+// set: S
+// clean
+// set: S
+```
+
+除此之外，可以接受一个`options`
+
+```typescript
+{
+  /**
+   * 当被追踪的时候进行调用
+   */
+  onTrack?: (event: DebuggerEvent) => void
+  /**
+   * 当被触发的时候进行调用
+   */
+  onTrigger?: (event: DebuggerEvent) => void
+  /**
+   * 执行时机
+   * pre ->  默认为 `pre` 加到下一个运行队列中进行执行
+   * post -> 在更新dom之后执行
+   * sync -> 立刻执行
+   */
+  flush?: 'pre' | 'post' | 'sync'
+}
+```
+
+为了防止内存泄漏，不要在非`setup`的顶级作用域之外使用（`watch`也是同理）
+
+```html
+<script setup>
+  // 这个监听器在组件卸载的时候会自动销毁
+  wathchEffect(() => {
+    // ....
+  });
+
+  setTimeout(() => {
+    // 无法挂载到正确的instance上 因此没办法正常销毁 从而导致内存泄漏
+    wathchEffect(() => {
+      // ....
+    });
+  }, 1e3);
+
+  if (xxx) {
+    // 这个也会监听器在组件卸载的时候会自动销毁
+    // 但是 setup语句块只会执行一次 因此会有该语句块内的语句没有被执行的可能性
+    wathchEffect(() => {
+      // ....
+    });
+  }
+
+  // 我们也可以手动进行停止
+  const stop = watchEffect(() => {
+    // ....
+  });
+
+  stop();
+</script>
+```
+
+### `wacth`
+
+监听指定的对象，当数据变动的时候，执行操作;
+
+```js
+const source = reactive({ a: 1, b: 2 });
+watch(
+  () => source.a,
+  () => {
+    console.log('change', source);
+  }
+);
+source.b = 'S';
+source.a = 'Ni';
+// change {a:"Ni", n:"S"};
+```
+
+`callback`除了能接收`newValue`、`oldValue`外，还有第三个参数，用于清楚我们在`callback`里的副作用;
+
+```js
+const val = ref('S');
+watch(() => val, (newValue, oldValue, clean) => {
+    // do something
+	const id =  setTimeout(() => /** xxxx **/, 1e3);
+    clean(() => {
+        clearTimeout(id);
+    })
+})
+```
+
+跟`wacthEffect`一样， `clean`函数一定会优先执行(初次变更时不会执行);
+
+跟`watchEffect`一样，存在第三个参数，除了`watchEffect`支持的外，还有以下值
+
+```typescript
+{
+  /**
+   * 是否立刻执行一次
+   */
+  immediate?: boolean;
+  /**
+   * 是否深度监听
+   */
+  deep?: boolean
+}
+```
+
+### `computed`
+
+计算属性是一个`ref`类型的对象；
+
+- 更新依赖于响应式对象，如果内部的依赖值都不是响应式对象的话，那么该计算属性永远不会更新
+
+- 内部是基于`effect`进行实现的，因此为了防止内存泄漏，请不要异步创建以及在非`setup`顶层下使用，内部也不应该存在副作用。
+
+## 依赖注入
+
+- `provide(key,value)`
+- `inject(key, value)`
+
+## 组件
+
+    ### `props`
+
+### `emits`
+
+语法糖， 都会在编译的时候转换成正常的形式
+
+```html
+<script setup>
+  const porps = definedProps(['SS']);
+  const emits = definedEmits({
+    change: payload => {
+      return payload.name === 'S';
+    },
+  });
+</script>
+```
+
+会转换成
+
+```js
+  props: ['SS'],
+  emits: {
+    change: (payload) => {
+      return payload.name === 'S'
+    }
+  },
+```
+
+## 生命周期
+
+- `onMounted()`
+- `onUpdated()`
+- `onUnmounted()`
+- `onBeforeMount()`
+- `onBeforeUpdate()`
+- `onBeforeUnmount()`
+- `onErrorCaptured()`
+- `onRenderTracked()`
+- `onRenderTriggered()`
+- `onActivated()`
+- `onDeactivated()`
+- `onServerPrefetch()`
+
+这些生命周期函数都应该在`setup`顶部作用域进行调用，如果在非顶部作用域或者异步调用时（不推荐）, 需要手动指定对应的上下文；
+
+## 依赖追踪
+
+## 语法糖
+
+- `$ref`
+
+## 参考资料
+
+- [https://staging-cn.vuejs.org/api/composition-api-setup.html](https://staging-cn.vuejs.org/api/composition-api-setup.html)

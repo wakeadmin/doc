@@ -1,0 +1,17 @@
+name: Docker Build and Push
+
+on:
+  workflow_dispatch:
+
+jobs:
+  algolia:
+    runs-on: ubuntu-latest
+    container:
+      image: algolia/docsearch-scraper
+      env:
+        APPLICATION_ID: K59QSJJE30
+        API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+        CONFIG: '{"index_name":"wakeadmin","start_urls":["https://wakeadmin.wakedata.com"],"stop_urls":[],"selectors":{"lvl0":".content h1","lvl1":".content h2","lvl2":".content h3","lvl3":".content h4","lvl4":".content h5","lvl5":".content h6","text":".content p, .content li, .content code"},  "strip_chars": " .,;:#", "scrape_start_urls": false}'
+    steps:
+      - name: run
+        run: cd /root && pipenv run python -m src.index 
