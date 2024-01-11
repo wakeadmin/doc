@@ -15,12 +15,78 @@
 - `DOCKER_SERVER?: string`: 发布的 registry, 用于发布。 例如 `172.26.59.200`(不需要指定 protocol), 默认为 Docker 官方镜像
 - `DOCKER_SKIP_LOGIN?: boolean`: 是否跳过登录
 
+在 0.2+ 版本，本库新增了 buildx 支持，可以取代掉 build、clean、publish 三个函数，并扩展了一些参数。详见下文
+
 <br>
 <br>
 <br>
 <br>
 
 ### 方法
+
+- (0.2 新增) buildx(options, ...args: string): void
+
+  新版本的构建方式，基于 Docker 的 buildx, 支持多平台镜像构建
+
+  options 定义：
+
+  ```ts
+  interface Options {
+    imageName?: string; // 镜像名称, 支持 DOCKER_IMAGE_NAME 环境变量配置, 也可以在 package.json 中配置
+    platforms?: string[]; // 构建平台, 支持 DOCKER_PLATFORMS(使用,分割) 环境变量配置, 也可以在 package.json 中配置
+    enablePlatforms?: boolean; // 是否支持多平台构建, 默认 true, 支持 DOCKER_ENABLE_PLATFORMS(true/false) 环境变量配置
+    tags?: string | string[]; // 支持指定多个 tag, 支持 DOCKER_TAGS 环境变量配置, 也可以在 package.json 中配置(tags(数组)或 tag(字符串)), 默认会使用 package.json version 作为 tag
+    latest?: boolean; // 是否发布 latest 版本, 默认 true, 支持 DOCKER_PUBLISH_LATEST(true/false) 环境变量配置
+    push?: boolean; // 是否发布, 默认 true, 支持 DOCKER_PUSH(true/false) 环境变量配置
+    buildArguments?: Record<string, string | undefined>; // 构建参数, 支持 DOCKER_BUILD_ARGS(NAME=VALUE,NAME=VALUE) 环境变量配置
+    host?: string; // 镜像仓库地址, 支持 DOCKER_SERVER 环境变量配置
+    user?: string; // 镜像仓库用户名, 支持 DOCKER_USER 环境变量配置
+    password?: string; // 镜像仓库密码, 支持 DOCKER_PASSWORD 环境变量配置
+    skipLogin?: boolean; // 是否跳过登录, 默认 false, 支持 DOCKER_SKIP_LOGIN(true/false) 环境变量配置
+    skipIfTagBuilded?: boolean; // 如果 tag 已经构建过，是否跳过构建, 默认 true, 支持 DOCKER_SKIP_IF_TAG_BUILDED(true/false) 环境变量配置
+    pull?: boolean; // 是否拉取最新镜像, 默认 false, 支持 DOCKER_PULL(true/false) 环境变量配置
+    dryRun?: boolean; // 是否 dry run, 默认 false, 支持 DOCKER_DRY_RUN(true/false) 环境变量配置
+  }
+  ```
+
+  新的方法支持从多个来源来获取参数，比如 package.json 或者 环境变量。可以更加简洁地定义构建的过程, 优先级如下：
+
+  - 函数参数
+  - 环境变量
+  - package.json
+
+  <br>
+  <br>
+  <br>
+
+  其中， imageName 和 tags 还支持模板写法。package.json 示例：
+
+  ```json
+  {
+    "name": "@wakeadmin/member",
+    // 镜像名称
+    "imageName": "wkfe/app-member",
+    "private": true,
+    "version": "1.1.2",
+    "productVersion": "V5.3.0",
+    "description": "大会员引擎项目",
+    "packageManager": "pnpm@7.33.6",
+    "engines": {
+      "node": ">=16.0.0",
+      "pnpm": "^7.0.0"
+    },
+    "browserslist": "Chrome 60",
+    // 使用模板
+    "tag": "<%= pkg.productVersion || VERSION %><%= env.STAGE === 'PRODUCTION' ? ('-' + pkg.version) : ('-snapshot-' + BUILD_ID) %>",
+    // 多平台构建控制
+    "platforms": ["linux/amd64", "linux/arm64"]
+  }
+  ```
+
+  <br>
+  <br>
+  <br>
+  <br>
 
 - `build(imageName: string, buildArguments?: Record<string, string>, ...args: string[]): void`: 镜像构建
 
@@ -105,3 +171,10 @@ ENV MAPP_VERSION=<%=VERSION%>
 ENV MAPP_NPM_THEME=<%=THEME%>
 
 ```
+
+<br>
+<br>
+
+## CLI 模式
+
+0.2 版本， buildx 也支持命令行模式，可以通过 `npx @wakeadmin/docker-build buildx` 来执行构建。
